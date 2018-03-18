@@ -3,138 +3,69 @@ import logging
 
 
 class PMF:
-    def __init__(self, k=10, epsilon=1, lamb=0.1, momentum=0.8, n_epoch=20, n_batch=10, batch_size=100):
+    def __init__(self, n_users, n_items, k=10, epsilon=0.1, lamb=0.1, momentum=0.8, n_epoch=20, batch_size=10):
         self.k = k
         self.epsilon = epsilon
         self.lamb = lamb
         self.momentum = momentum
         self.n_epoch = n_epoch
-        self.n_batch = n_batch
         self.batch_size = batch_size
         self.mean_val = 0
-        self.P = None
-        self.Q = None
+        self.n_users = n_users
+        self.n_items = n_items
+        self.P = 0.1 * np.random.randn(n_users, self.k)
+        self.Q = 0.1 * np.random.randn(n_items, self.k)
 
-    def fit(self, entries_train, entries_val, n_users, n_items):
+    def fit(self, entries_train, entries_val):
         self.mean_val = np.mean(entries_train[:, 2])
 
         n_train, n_val = entries_train.shape[0], entries_val.shape[0]
         logging.info('PMF. {} training items, {} val items, mean: {}.'.format(n_train, n_val, self.mean_val))
 
-        self.P = 0.1 * np.random.randn(n_users, self.k)
-        self.Q = 0.1 * np.random.randn(n_items, self.k)
+        P_inc = np.zeros((self.n_users, self.k))
+        Q_inc = np.zeros((self.n_users, self.k))
+        all_user_idxs_train = entries_train[:, 0]
+        all_item_idxs_train = entries_train[:, 1]
 
+        n_batches = int(n_train / self.batch_size)
         for it in range(self.n_epoch):
-            pass
+            for batch_idx in range(n_batches):
+                indices = np.arange(self.batch_size * batch_idx, self.batch_size * (batch_idx + 1))
 
+                user_idxs = np.array(entries_train[indices, 0], dtype='int32')
+                item_idxs = np.array(entries_train[indices, 1], dtype='int32')
 
-class PMF_alright(object):
-    def __init__(self, num_feat=10, epsilon=1, _lambda=0.1, momentum=0.8, maxepoch=20, num_batches=10,
-                 batch_size=1000):
-        self.num_feat = num_feat  # Number of latent features,
-        self.epsilon = epsilon  # learning rate,
-        self._lambda = _lambda  # L2 regularization,
-        self.momentum = momentum  # momentum of the gradient,
-        self.maxepoch = maxepoch  # Number of epoch before stop,
-        self.num_batches = num_batches  # Number of batches in each epoch (for SGD optimization),
-        self.batch_size = batch_size  # Number of training samples used in each batches (for SGD optimization)
-
-        self.w_Item = None  # Item feature vectors
-        self.w_User = None  # User feature vectors
-
-        self.rmse_train = []
-        self.rmse_test = []
-
-    # ***Fit the model with train_tuple and evaluate RMSE on both train and test data.  ***********#
-    # ***************** train_vec=TrainData, test_vec=TestData*************#
-    def fit(self, train_vec, test_vec):
-        # mean subtraction
-        self.mean_inv = np.mean(train_vec[:, 2])
-
-        pairs_train = train_vec.shape[0]  # traindata
-        pairs_test = test_vec.shape[0]  # testdata
-
-        # 1-p-i, 2-m-c
-        num_user = int(max(np.amax(train_vec[:, 0]), np.amax(test_vec[:, 0]))) + 1
-        num_item = int(max(np.amax(train_vec[:, 1]), np.amax(test_vec[:, 1]))) + 1
-
-        incremental = False  # 增量
-        if (not incremental) or (self.w_Item is None):
-            # initialize
-            self.epoch = 0
-            self.w_Item = 0.1 * np.random.randn(num_item, self.num_feat)  # numpy.random.randn 电影 M x D 正态分布矩阵
-            self.w_User = 0.1 * np.random.randn(num_user, self.num_feat)  # numpy.random.randn 用户 N x D 正态分布矩阵
-
-            self.w_Item_inc = np.zeros((num_item, self.num_feat))  # 创建电影 M x D 0矩阵
-            self.w_User_inc = np.zeros((num_user, self.num_feat))  # 创建用户 N x D 0矩阵
-
-        while self.epoch < self.maxepoch:  # 检查迭代次数
-            self.epoch += 1
-
-            # Shuffle training truples
-            shuffled_order = np.arange(train_vec.shape[0])  # 根据记录数创建等差array
-            np.random.shuffle(shuffled_order)  # 用于将一个列表中的元素打乱
-
-            # Batch update
-            for batch in range(self.num_batches):  # 每次迭代要使用的数据量
-                # print "epoch %d batch %d" % (self.epoch, batch+1)
-
-                test = np.arange(self.batch_size * batch, self.batch_size * (batch + 1))
-                batch_idx = np.mod(test, shuffled_order.shape[0])  # 本次迭代要使用的索引下标
-
-                batch_UserID = np.array(train_vec[shuffled_order[batch_idx], 0], dtype='int32')
-                batch_ItemID = np.array(train_vec[shuffled_order[batch_idx], 1], dtype='int32')
-
-                # Compute Objective Function
-                pred_out = np.sum(np.multiply(self.w_User[batch_UserID, :],
-                                              self.w_Item[batch_ItemID, :]),
-                                  axis=1)  # mean_inv subtracted # np.multiply对应位置元素相乘
-
-                rawErr = pred_out - train_vec[shuffled_order[batch_idx], 2] + self.mean_inv
+                pred = np.sum(self.P[user_idxs, :] * self.Q[item_idxs, :], axis=1)
+                errs = pred + self.mean_val - entries_train[indices, 2]
+                errs = errs.reshape((-1, 1))
 
                 # Compute gradients
-                Ix_User = 2 * np.multiply(rawErr[:, np.newaxis], self.w_Item[batch_ItemID, :]) \
-                       + self._lambda * self.w_User[batch_UserID, :]
-                Ix_Item = 2 * np.multiply(rawErr[:, np.newaxis], self.w_User[batch_UserID, :]) \
-                       + self._lambda * (self.w_Item[batch_ItemID, :])  # np.newaxis :increase the dimension
+                grad_p = 2 * errs * self.Q[item_idxs, :] + self.lamb * self.P[user_idxs, :]
+                grad_q = 2 * errs * self.P[user_idxs, :] + self.lamb * self.Q[item_idxs, :]
 
-                dw_Item = np.zeros((num_item, self.num_feat))
-                dw_User = np.zeros((num_user, self.num_feat))
+                dp = np.zeros((self.n_users, self.k))
+                dq = np.zeros((self.n_users, self.k))
 
-                # loop to aggreate the gradients of the same element
+                # aggregate the gradients
                 for i in range(self.batch_size):
-                    dw_Item[batch_ItemID[i], :] += Ix_Item[i, :]
-                    dw_User[batch_UserID[i], :] += Ix_User[i, :]
+                    dp[user_idxs[i], :] += grad_p[i, :]
+                    dq[item_idxs[i], :] += grad_q[i, :]
 
                 # Update with momentum
-                self.w_Item_inc = self.momentum * self.w_Item_inc + self.epsilon * dw_Item / self.batch_size
-                self.w_User_inc = self.momentum * self.w_User_inc + self.epsilon * dw_User / self.batch_size
+                # Q_inc = self.momentum * Q_inc + self.epsilon * dq / self.batch_size
+                # P_inc = self.momentum * P_inc + self.epsilon * dp / self.batch_size
+                Q_inc = self.epsilon * dq
+                P_inc = self.epsilon * dp
 
-                self.w_Item = self.w_Item - self.w_Item_inc
-                self.w_User = self.w_User - self.w_User_inc
+                self.P -= P_inc
+                self.Q -= Q_inc
 
-                # Compute Objective Function after
-                if batch == self.num_batches - 1:
-                    pred_out = np.sum(np.multiply(self.w_User[np.array(train_vec[:, 0], dtype='int32'), :],
-                                                  self.w_Item[np.array(train_vec[:, 1], dtype='int32'), :]),
-                                      axis=1)  # mean_inv subtracted
-                    rawErr = pred_out - train_vec[:, 2] + self.mean_inv
-                    obj = np.linalg.norm(rawErr) ** 2 \
-                          + 0.5 * self._lambda * (np.linalg.norm(self.w_User) ** 2 + np.linalg.norm(self.w_Item) ** 2)
+            pred = np.sum(self.P[all_user_idxs_train, :] * self.Q[all_item_idxs_train, :], axis=1)
+            errs = pred - entries_train[:, 2] + self.mean_val
+            obj = np.linalg.norm(errs) ** 2 + 0.5 * self.lamb * (
+                    np.linalg.norm(self.P) ** 2 + np.linalg.norm(self.Q) ** 2)
 
-                    self.rmse_train.append(np.sqrt(obj / pairs_train))
-
-                # Compute validation error
-                if batch == self.num_batches - 1:
-                    pred_out = np.sum(np.multiply(self.w_User[np.array(test_vec[:, 0], dtype='int32'), :],
-                                                  self.w_Item[np.array(test_vec[:, 1], dtype='int32'), :]),
-                                      axis=1)  # mean_inv subtracted
-                    rawErr = pred_out - test_vec[:, 2] + self.mean_inv
-                    self.rmse_test.append(np.linalg.norm(rawErr) / np.sqrt(pairs_test))
-
-                    # Print info
-                    if batch == self.num_batches - 1:
-                        print('Training RMSE: %f, Test RMSE %f' % (self.rmse_train[-1], self.rmse_test[-1]))
-
-    def predict(self, invID):
-        return np.dot(self.w_Item, self.w_User[int(invID), :]) + self.mean_inv  # numpy.dot 点乘
+            pred = np.sum(self.P[entries_val[:, 0], :] * self.Q[entries_val[:, 1], :], axis=1)
+            errs = pred - entries_val[:, 2] + self.mean_val
+            rmse_val = np.linalg.norm(errs) / np.sqrt(n_val)
+            logging.info('iter {}, obj={}, val_rmse={}'.format(it, obj, rmse_val))
