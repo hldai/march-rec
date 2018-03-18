@@ -38,7 +38,17 @@ def __run_mlp(train_file, val_file):
 def __run_march(train_file, val_file):
     from models.marchrec import MarchRec
 
-    mr = MarchRec(N_USERS + 1, N_ITEMS + 1, 10)
+    entries_train = __get_shuffled_train_entries(train_file)
+    df_val = pd.read_csv(val_file, header=None)
+    entries_val = df_val.as_matrix([0, 1, 2])
+
+    lamb = 0.1
+    lr = 0.001
+    batch_size = 10
+    n_epoch = 50
+    k = 10
+    mr = MarchRec(N_USERS + 1, N_ITEMS + 1, k, lamb, n_epoch, batch_size, lr)
+    mr.fit(entries_train, entries_val)
 
 
 str_today = datetime.date.today().strftime('%y-%m-%d')
@@ -47,6 +57,7 @@ init_logging('log/{}.log'.format(str_today), to_stdout=True)
 split_id = 1
 train_file = os.path.join(DATADIR, 'u{}_train.txt'.format(split_id))
 val_file = os.path.join(DATADIR, 'u{}_val.txt'.format(split_id))
+
 # __run_pmf(train_file, val_file)
 # __run_mlp(train_file, val_file)
 __run_march(train_file, val_file)
