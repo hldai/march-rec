@@ -28,10 +28,12 @@ def __run_pmf(train_file, val_file):
 def __run_mlp(train_file, val_file):
     from models.mlp import MLPRec
 
+    mlpr = MLPRec(N_USERS + 1, N_ITEMS + 1, [10, 10], learning_rate=0.1, lamb=0.1, n_epochs=10)
+
     entries_train = __get_shuffled_train_entries(train_file)
     df_val = pd.read_csv(val_file, header=None)
     entries_val = df_val.as_matrix([0, 1, 2])
-    mlpr = MLPRec(N_USERS + 1, N_ITEMS + 1, [10, 10], learning_rate=0.1, lamb=0.1, n_epochs=10)
+
     mlpr.fit(entries_train, entries_val)
 
 
