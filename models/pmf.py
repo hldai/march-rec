@@ -16,14 +16,15 @@ class PMF:
         self.P = 0.1 * np.random.randn(n_users, self.k)
         self.Q = 0.1 * np.random.randn(n_items, self.k)
 
-    def fit(self, entries_train, entries_val):
+    def fit(self, entries_train, entries_val, entries_test):
         self.mean_val = np.mean(entries_train[:, 2])
 
-        n_train, n_val = entries_train.shape[0], entries_val.shape[0]
-        logging.info('PMF. {} training items, {} val items, mean: {}.'.format(n_train, n_val, self.mean_val))
+        n_train, n_val, n_test = entries_train.shape[0], entries_val.shape[0], entries_test.shape[0]
+        logging.info('PMF. {} training items, {} val items, {} test items, mean: {}.'.format(
+            n_train, n_val, n_test, self.mean_val))
 
         P_inc = np.zeros((self.n_users, self.k))
-        Q_inc = np.zeros((self.n_users, self.k))
+        Q_inc = np.zeros((self.n_items, self.k))
         all_user_idxs_train = entries_train[:, 0]
         all_item_idxs_train = entries_train[:, 1]
 
@@ -44,7 +45,7 @@ class PMF:
                 grad_q = 2 * errs * self.P[user_idxs, :] + self.lamb * self.Q[item_idxs, :]
 
                 dp = np.zeros((self.n_users, self.k))
-                dq = np.zeros((self.n_users, self.k))
+                dq = np.zeros((self.n_items, self.k))
 
                 # aggregate the gradients
                 for i in range(self.batch_size):
@@ -68,4 +69,8 @@ class PMF:
             pred = np.sum(self.P[entries_val[:, 0], :] * self.Q[entries_val[:, 1], :], axis=1)
             errs = pred - entries_val[:, 2] + self.mean_val
             rmse_val = np.linalg.norm(errs) / np.sqrt(n_val)
-            logging.info('iter {}, obj={}, val_rmse={}'.format(it, obj, rmse_val))
+
+            pred = np.sum(self.P[entries_test[:, 0], :] * self.Q[entries_test[:, 1], :], axis=1)
+            errs = pred - entries_test[:, 2] + self.mean_val
+            rmse_test = np.linalg.norm(errs) / np.sqrt(n_test)
+            logging.info('iter {}, obj={}, rmse_val={}, rmse_test={}'.format(it, obj, rmse_val, rmse_test))
