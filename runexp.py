@@ -80,6 +80,8 @@ def __run_march(train_file, val_file, test_file):
 
     for params in params_list:
         lr, lamb1, lamb2, lamb3, alpha1, alpha2, alpha3 = params
+        if lamb1 == 0.01 and lamb2 == 0.01:
+            continue
         mr = MarchRec(N_USERS + 1, N_ITEMS + 1, k, n_epoch, batch_size, lr, alpha1, alpha2, alpha3, lamb1, lamb2, lamb3)
         mr.fit(entries_train, entries_val, entries_test)
 

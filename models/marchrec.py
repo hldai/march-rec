@@ -104,7 +104,7 @@ class MarchRec:
         users_val_bin, items_val_bin, y_val = self.__get_rand_val_instances(entries_val, 100)
 
         batch_size_bin = int(users_train_bin.shape[0] / n_batches)
-        print(n_train, users_train_bin.shape[0], batch_size_bin, self.batch_size)
+        # print(n_train, users_train_bin.shape[0], batch_size_bin, self.batch_size)
 
         init = tf.global_variables_initializer()
         sess = tf.Session()
@@ -176,22 +176,27 @@ class MarchRec:
                                     self.input_y_bin: y_val})[0]
             err_val_bin /= np.sqrt(n_val)
 
+            err_test_pr = None
             if err_val_pr < min_err_val_pr:
                 min_err_val_pr = err_val_pr
                 inf_cnt = 0
+                err_test_pr = sess.run(
+                    [self.err_pr],
+                    {self.input_users: users_test_r, self.input_items: items_test_r, self.input_r: r_test})[0]
+                err_test_pr /= np.sqrt(n_test)
             else:
                 inf_cnt += 1
             if inf_cnt == 20:
                 break
 
-            err_test_pr = sess.run(
-                [self.err_pr],
-                {self.input_users: users_test_r, self.input_items: items_test_r, self.input_r: r_test})[0]
-            err_test_pr /= np.sqrt(n_test)
-
-            logging.info('it={}, l_pr={:.3f}, l_bin={:.3f}, l_nr={:.3f}, err_val_pr={:.5f}, err_test_pr={:.5f}, '
-                         'err_val_nr={:.4f}, err_val_bin={:.4f}'.format(
-                it, sum_loss_pr, sum_loss_bin, sum_loss_nr, err_val_pr, err_test_pr, err_val_nr, err_val_bin))
+            if err_test_pr is None:
+                logging.info('it={}, l_pr={:.3f}, l_bin={:.3f}, l_nr={:.3f}, err_val_pr={:.5f}, '
+                             'err_val_nr={:.4f}, err_val_bin={:.4f}'.format(
+                    it, sum_loss_pr, sum_loss_bin, sum_loss_nr, err_val_pr, err_val_nr, err_val_bin))
+            else:
+                logging.info('it={}, l_pr={:.3f}, l_bin={:.3f}, l_nr={:.3f}, err_val_pr={:.5f}, err_test_pr={:.5f}, '
+                             'err_val_nr={:.4f}, err_val_bin={:.4f}'.format(
+                    it, sum_loss_pr, sum_loss_bin, sum_loss_nr, err_val_pr, err_test_pr, err_val_nr, err_val_bin))
 
     def __get_rand_val_instances(self, entries_val, n_pos_samples):
         n_neg_samples = n_pos_samples * 10
